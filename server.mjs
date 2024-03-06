@@ -3,121 +3,97 @@ import bodyParser from "body-parser";
 import data from "./data.js";
 import { Parser } from "@json2csv/plainjs";
 
-let opts = {};
-let asyncOpts = {};
 let csv = "";
+let builtArray = [];
 
 let app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-function findOption(questionID, responseID) {
-  for (let i = 0; i < data.answers.length; i++) {
-    if (
-      data.answers[i].responseId === responseID &&
-      data.answers[i].questionId === questionID
-    ) {
-      return {
-        found: true,
-        option: data.answers[i].optionId,
-        indexOfOption: data.answers[i].optionId - 1,
-      };
-    }
-  }
-  return { found: false };
-}
+function buildArray() {
+  let responseHolder = "";
+  let answerHolder = "";
+  let questionHolder = "";
+  let stringBuilder = "";
 
-function alreadyInUserChoices(userChoices, token) {
-  let alreadyExists = false;
-  for (let i = 0; i < userChoices.length; i++) {
-    if (userChoices[i].User === token) {
-      alreadyExists = true;
+  for (
+    let responsesIndex = 0;
+    responsesIndex < data.responses.length;
+    responsesIndex++
+  ) {
+    responseHolder = data.responses[responsesIndex].token;
+    stringBuilder += `{"User":"${responseHolder}",`;
+    for (
+      let questionsIndex = 0;
+      questionsIndex < data.questions.length;
+      questionsIndex++
+    ) {
+      questionHolder = data.questions[questionsIndex].label;
+      for (
+        let optionsIndex = 0;
+        optionsIndex < data.questions[questionsIndex].options.length;
+        optionsIndex++
+      ) {
+        for (
+          let answersIndex = 0;
+          answersIndex < data.answers.length;
+          answersIndex++
+        ) {
+          if (
+            //response
+            data.answers[answersIndex].responseId ===
+              data.responses[responsesIndex].id &&
+            //question
+            data.answers[answersIndex].questionId ===
+              data.questions[questionsIndex].id &&
+            //option
+            data.answers[answersIndex].optionId ===
+              data.questions[questionsIndex].options[optionsIndex].id
+          ) {
+            answerHolder =
+              data.questions[questionsIndex].options[optionsIndex].label;
+          }
+        }
+      }
+      stringBuilder += `"${questionHolder}":"${answerHolder}",`;
     }
+    stringBuilder = stringBuilder.slice(0, -1);
+    stringBuilder += "}";
+    builtArray.push(JSON.parse(stringBuilder));
+    stringBuilder = "";
   }
-  return alreadyExists;
 }
 
 app.get("/sendMeData", (req, res) => {
-  let userChoices = [];
-  let arrayToDisplay = [];
-  let found = false;
+  buildArray();
+  //console.log(builtArray);
 
-  //Find user choices
-  for (let i = 0; i < data.responses.length; i++) {
-    for (let j = 0; j < data.questions.length; j++) {
-      let returnedResult = findOption(
-        data.responses[i].id,
-        data.questions[j].id
-      );
-      if (returnedResult.found === true) {
-        if (
-          alreadyInUserChoices(userChoices, data.responses[i].token) === false
-        ) {
-          userChoices.push({
-            User: data.responses[i].token,
-            Option: returnedResult.option,
-            IndexOfOption: returnedResult.indexOfOption,
-          });
-        }
-      }
-    }
-  }
-  console.log(userChoices);
-
-  //Create filtered array to display
-  for (let i = 0; i < userChoices.length; i++) {
-    for (let j = 0; j < data.responses.length; j++) {
-      for (let k = 0; k < data.questions.length; k++) {
-        arrayToDisplay.push({
-          user: userChoices[i],
-        });
-      }
-    }
-  }
   try {
     const opts = {
       fields: [
         {
           label: "User",
-          value: "token",
+          value: "User",
         },
         {
-          label: data.questions[0].label,
-          value: (record) => data.questions[0].options[1].label,
+          label: "How are you today?",
+          value: "How are you today?",
         },
         {
-          label: data.questions[1].label,
-          value: (record) => data.questions[1].options[1].label,
+          label: "What is your age?",
+          value: "What is your age?",
         },
       ],
-      // fields: [
-      //   {
-      //     label: "User",
-      //     value: (record) => data.responses[0].token,
-      //     value: (record) => data.responses[1].token,
-      //   },
-      //   {
-      //     label: data.questions[0].label,
-      //     value: (record) => data.questions[0].options[1].label,
-      //     value: (record) => data.questions[0].options[0].label,
-      //   },
-      //   {
-      //     label: data.questions[1].label,
-      //     value: (record) => data.questions[1].options[1].label,
-      //     value: (record) => data.questions[1].options[0].label,
-      //   },
-      // ],
     };
     const parser = new Parser(opts);
-    const csv = parser.parse(data);
-    //console.log(csv);
-    res.send("");
+    let csv = parser.parse(builtArray);
+    res.type("text/csv").send(csv);
+    console.log("sent");
   } catch (err) {
     console.error(err);
   }
 });
 
 app.listen(3000, () => {
-  console.log(data.responses[0].token);
   console.log("listening");
 });
