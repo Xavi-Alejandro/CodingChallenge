@@ -3,7 +3,6 @@ import bodyParser from "body-parser";
 import data from "./data.js";
 import { Parser } from "@json2csv/plainjs";
 
-let csv = "";
 let builtArray = [];
 
 let app = express();
